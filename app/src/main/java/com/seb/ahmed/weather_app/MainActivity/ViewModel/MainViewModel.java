@@ -1,5 +1,7 @@
 package com.seb.ahmed.weather_app.MainActivity.ViewModel;
 
+import android.arch.lifecycle.LiveData;
+import android.arch.lifecycle.MutableLiveData;
 import android.content.Context;
 
 import com.seb.ahmed.weather_app.Abstract.AbstractViewModel;
@@ -18,10 +20,13 @@ import java.util.List;
 
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class MainViewModel extends AbstractViewModel{
 
-    WeatherResponse weatherResponse;
+    MutableLiveData< WeatherResponse >weatherResponse;
     private WeatherAPIs weatherAPIs;
     WeatherRepo repo;
     List<Day> storedDays;
@@ -31,6 +36,7 @@ public class MainViewModel extends AbstractViewModel{
         weatherAPIs = RestApiFactory.getRetrofitInstance().create(WeatherAPIs.class);
         this.context = context;
         repo = new WeatherRepo(context);
+        weatherResponse = new MutableLiveData<>();
     }
 
 
@@ -41,27 +47,32 @@ public class MainViewModel extends AbstractViewModel{
 
     @Override
     public void fetchData() {
-        Disposable disposable = weatherAPIs.GetCurrentWeather(
-                Const.API_KEY,
-                PreferencesManager.getInstance(context).getLastSelectedCity(),
-                "5")
-                .subscribeOn(Schedulers.io())
-                .observeOn(ApplicationWrapper.getInstance().subscribeScheduler())
-                .subscribe(this::onSuccessResponse,this::onFailureResponse);
-        compositeDisposable.add(disposable);
+        weatherAPIs.GetCurrentWeather(Const.API_KEY,
+                PreferencesManager.getInstance(context).getLastSelectedCity(),"5").enqueue(new Callback<WeatherResponse>() {
+            @Override
+            public void onResponse(Call<WeatherResponse> call, Response<WeatherResponse> response) {
+                weatherResponse.postValue(response.body());
+//                repo.DeleteAll();
+            }
+
+            @Override
+            public void onFailure(Call<WeatherResponse> call, Throwable t) {
+
+            }
+        });
     }
 
     @Override
     public void onSuccessResponse(Object object) {
-        weatherResponse = (WeatherResponse)object;
-        weatherResponse.setCurrent(UpdateCurrentObject(weatherResponse.getCurrent()));
-        repo.DeleteAll();
-        for(int i =0 ; i<weatherResponse.getForecast().getForecastDay().size() ; i++)
-        {
-            repo.insert(weatherResponse.getForecast().getForecastDay().get(i).getDay());
-        }
-        storedDays = repo.getDayList();
-        refreshView(weatherResponse);
+//        weatherResponse = (WeatherResponse)object;
+//        weatherResponse.setCurrent(UpdateCurrentObject(weatherResponse.getCurrent()));
+//        repo.DeleteAll();
+//        for(int i =0 ; i<weatherResponse.getForecast().getForecastDay().size() ; i++)
+//        {
+//            repo.insert(weatherResponse.getForecast().getForecastDay().get(i).getDay());
+//        }
+//        storedDays = repo.getDayList();
+//        refreshView(weatherResponse);
     }
 
     @Override
@@ -71,12 +82,12 @@ public class MainViewModel extends AbstractViewModel{
 
     private Current UpdateCurrentObject(Current current)
     {
-        current.setMaxTemp(String.format("%s°", weatherResponse.getForecast().getForecastDay().get(0).getDay().getMaxtempC()));
-        current.setMinTemp(String.format("%s°", weatherResponse.getForecast().getForecastDay().get(0).getDay().getMintempC()));
+        current.setMaxTemp(String.format("%s°", weatherResponse.getValue().getForecast().getForecastDay().get(0).getDay().getMaxtempC()));
+        current.setMinTemp(String.format("%s°", weatherResponse.getValue().getForecast().getForecastDay().get(0).getDay().getMintempC()));
         return current;
     }
 
-    public WeatherResponse getWeatherResponse() {
+    public MutableLiveData<WeatherResponse >getWeatherResponse() {
         return weatherResponse;
     }
 
